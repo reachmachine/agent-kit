@@ -11,15 +11,22 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 
-def _git(repo: Path, *args: str) -> str:
+class GitContextError(RuntimeError):
+    """Git could not read the requested comparison."""
+
+
+def _git(repo: Path, *args: str, required: bool = False) -> str:
     result = subprocess.run(
         ["git", "-C", str(repo), *args],
         capture_output=True,
         check=False,
     )
     if result.returncode != 0:
+        if required:
+            detail = result.stderr.decode("utf-8", errors="replace").strip()
+            raise GitContextError(detail or f"git {args[0]} failed")
         return ""
-    # Bytes, decoded with "replace": a binary file in the diff (an image) must not crash the check.
+
     return result.stdout.decode("utf-8", errors="replace")
 
 
@@ -78,11 +85,19 @@ def _added_lines(repo: Path, base: str, head: str, path: str) -> list[str]:
 def from_git(repo_root: Path, base: str = "HEAD~1", head: str = "HEAD") -> Context:
     """Build a Context from a real repository range."""
     repo = Path(repo_root).resolve()
+    base = _git(
+        repo, "rev-parse", "--verify", "--end-of-options",
+        f"{base}^{{commit}}", required=True,
+    ).strip()
+    head = _git(
+        repo, "rev-parse", "--verify", "--end-of-options",
+        f"{head}^{{commit}}", required=True,
+    ).strip()
     message = _git(repo, "log", "-1", "--format=%B", head)
     branch = _git(repo, "rev-parse", "--abbrev-ref", "HEAD").strip()
     # "<head> <parent>..." -- three or more ids means two or more parents.
     parents = _git(repo, "rev-list", "--parents", "-n", "1", head).split()
-    names = _git(repo, "diff", "--name-only", base, head).split()
+    names = _git(repo, "diff", "--name-only", base, head, "--", required=True).split()
     changes = [
         Change(
             path=name,

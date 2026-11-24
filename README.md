@@ -179,7 +179,7 @@ python3 .claude/agent-kit/checks/run_all.py --base origin/main --head HEAD
 |---|---|
 | 0 | clean, or nothing in the range to check |
 | 1 | at least one check failed |
-| 2 | the kit could not run: no `project.yml`, a missing key, or no PyYAML |
+| 2 | The kit could not run because of a configuration error or an invalid Git comparison. |
 
 **Give the job the full git history.** In GitHub Actions that is
 `fetch-depth: 0` on the checkout step. "Honest limits" below says what happens
@@ -234,10 +234,9 @@ proposed for deletion, so the rulebook shrinks as well as grows.
 - **Last commit only.** `ticket-key` and `rule3` read the message of the last
   commit in the range, and skip a merge commit. `file-growth` and
   `duplicate-helpers` read every changed file in the range.
-- **A bad range passes silently.** A base ref that does not exist, or a
-  shallow clone, gives an empty range. The run prints
-  `No changed files in range; nothing to check.` and exits 0. A missing config
-  exits 2; a missing ref does not yet.
+- - **An unavailable revision exits 2.** If Git cannot resolve the base or head
+  commit, the runner reports the requested comparison and exits 2. A valid
+  comparison with no changed files still exits 0.
 - **`rule3` checks the words, not the run.** It looks for `RED` or
   `Rule3-Exempt:` in the message. It cannot tell whether the failing run was
   real. That is the reviewer's job.

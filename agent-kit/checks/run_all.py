@@ -84,7 +84,11 @@ def main(argv: list[str] | None = None) -> int:
             print(f"  {name}")
         return 0
 
-    ctx = git_ctx.from_git(Path(args.repo).resolve(), args.base, args.head)
+    try:
+        ctx = git_ctx.from_git(Path(args.repo).resolve(), args.base, args.head)
+    except git_ctx.GitContextError as exc:
+        print(f"Cannot compare {args.base!r} to {args.head!r}: {exc}", file=sys.stderr)
+        return 2
     if not ctx.changes:
         print("No changed files in range; nothing to check.")
         return 0

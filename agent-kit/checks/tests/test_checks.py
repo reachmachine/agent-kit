@@ -284,3 +284,33 @@ def test_a_binary_file_in_the_diff_does_not_crash(tmp_path):
     image = next(c for c in context.changes if c.path == "img.png")
     assert image.lines_after == 0
     assert run_all.collect(context, cfg(), only=["duplicate-helpers"]) == {"duplicate-helpers": []}
+@pytest.mark.parametrize(
+    ("base", "head", "expected_exit"),
+    [
+        ("missing-base", "HEAD", 2),
+        ("HEAD", "missing-head", 2),
+        ("HEAD", "HEAD", 0),
+    ],
+)
+def test_git_range_exit_status(tmp_path, monkeypatch, capsys, base, head, expected_exit):
+    git = [
+        "git", "-C", str(tmp_path),
+        "-c", "user.name=Test",
+        "-c", "user.email=test@example.com",
+    ]
+    subprocess.run([*git, "init", "-q"], check=True)
+    subprocess.run([*git, "commit", "--allow-empty", "-qm", "baseline"], check=True)
+
+    config = tmp_path / "project.yml"
+    config.write_text("tracker: {ticket_pattern: '#[0-9]+'}\n", encoding="utf-8")
+    monkeypatch.setenv("AGENT_KIT_CONFIG", str(config))
+
+    result = run_all.main(["--repo", str(tmp_path), "--base", base, "--head", head])
+    output = capsys.readouterr()
+
+    assert result == expected_exit
+    if expected_exit == 2:
+        assert base in output.err and head in output.err
+        assert "nothing to check" not in output.out
+    else:
+        assert "nothing to check" in output.out
